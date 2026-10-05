@@ -1,0 +1,70 @@
+/* Hide Local's own Live Link toggle while ours occupies its slot. */
+.cf-tunnel-takeover > div:has(.TID_Live_Link_Toggle__Trigger_Content) {
+	display: none !important;
+}
+
+.cf-tunnel-slot {
+	display: flex;
+	margin-right: 20px;
+}
+
+.cf-tunnel {
+	align-items: center;
+	display: flex;
+	font-size: 14px;
+	gap: 10px;
+	white-space: nowrap;
+}
+
+.cf-tunnel--inline {
+	margin-right: 20px;
+}
+
+.cf-tunnel__dot {
+	background: #b4b4b4;
+	border-radius: 50%;
+	display: inline-block;
+	height: 8px;
+	width: 8px;
+}
+
+.cf-tunnel__dot--on {
+	background: #51bb7b;
+}
+
+.cf-tunnel__label {
+	font-weight: 500;
+}
+
+.cf-tunnel__button,
+.cf-tunnel__link {
+	background: none;
+	border: 0;
+	color: #51bb7b;
+	cursor: pointer;
+	font: inherit;
+	font-weight: 500;
+	padding: 0;
+}
+
+.cf-tunnel__link {
+	color: inherit;
+	max-width: 260px;
+	overflow: hidden;
+	text-decoration: underline;
+	text-overflow: ellipsis;
+}
+
+.cf-tunnel__button:disabled {
+	color: #b4b4b4;
+	cursor: default;
+}
+
+.cf-tunnel__hint {
+	color: #8d8d8d;
+}
+
+.cf-tunnel__error {
+	color: #d0021b;
+	cursor: help;
+}

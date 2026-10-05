@@ -1,0 +1,49 @@
+{
+	"name": "localwp-cloudflare-tunnel",
+	"productName": "Cloudflare Tunnel",
+	"version": "0.1.0",
+	"author": "Kevin Danielsen",
+	"keywords": [
+		"local-addon"
+	],
+	"bgColor": "#f38020",
+	"icon": "icon.svg",
+	"slug": "localwp-cloudflare-tunnel",
+	"description": "Share a Local site with a Cloudflare Quick Tunnel (trycloudflare.com).",
+	"renderer": "lib/renderer.js",
+	"main": "lib/main.js",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/DekodeInteraktiv/localwp-cloudflare-tunnel"
+	},
+	"bugs": {
+		"url": "https://github.com/DekodeInteraktiv/localwp-cloudflare-tunnel/issues"
+	},
+	"license": "MIT",
+	"scripts": {
+		"start": "tsc --watch",
+		"build": "tsc && node -e \"require('fs').copyFileSync('src/mu-plugin.php', 'lib/mu-plugin.php')\"",
+		"lint": "tsc --noEmit && php -l src/mu-plugin.php",
+		"test": "npm run build && node --test \"test/unit/*.test.js\"",
+		"dist": "npm run build && npm pack",
+		"test:e2e": "npm run build && node test/e2e.js"
+	},
+	"devDependencies": {
+		"@getflywheel/local": "^9",
+		"@types/node": "^18.11.9",
+		"@types/react": "^18.0.25",
+		"typescript": "^4"
+	},
+	"peerDependencies": {
+		"react": ">= 16.4.0",
+		"react-dom": ">= 16.4.0"
+	},
+	"files": [
+		"lib/**/*",
+		"icon.svg",
+		"style.css"
+	],
+	"engines": {
+		"local-by-flywheel": ">=6.7.0"
+	}
+}
