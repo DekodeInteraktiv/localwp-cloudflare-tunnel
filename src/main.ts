@@ -37,9 +37,20 @@ export default function (context) {
 	// ~/Library/Application Support/Local/cloudflared
 	const managedDir = path.join(electron.app.getPath('userData'), 'cloudflared');
 
+	let quitting = false;
+
 	const setState = (siteId: string, state: TunnelState) => {
 		states.set(siteId, state);
-		sendIPCEvent('cf-tunnel:status', siteId, state);
+
+		if (quitting) {
+			return;
+		}
+
+		try {
+			sendIPCEvent('cf-tunnel:status', siteId, state);
+		} catch (error) {
+			log(`Could not send status for ${siteId}: ${error}`);
+		}
 	};
 
 	const getState = (siteId: string): TunnelState => states.get(siteId) || { status: 'stopped' };
@@ -166,9 +177,16 @@ export default function (context) {
 		}
 	});
 
+	// Must never throw: an exception here would stop later before-quit listeners, including Local's own.
 	electron.app.on('before-quit', () => {
+		quitting = true;
+
 		for (const siteId of Array.from(tunnels.keys())) {
-			stop(siteId);
+			try {
+				stop(siteId);
+			} catch (error) {
+				log(`Failed to stop tunnel for ${siteId} on quit: ${error}`);
+			}
 		}
 	});
 }
