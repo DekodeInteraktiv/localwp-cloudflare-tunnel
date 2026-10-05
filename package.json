@@ -29,7 +29,7 @@
 		"test:e2e": "npm run build && node test/e2e.js"
 	},
 	"devDependencies": {
-		"@getflywheel/local": "^9",
+		"@getflywheel/local": "^10",
 		"@types/node": "^18.11.9",
 		"@types/react": "^18.0.25",
 		"typescript": "^4"
