@@ -1,5 +1,5 @@
 // Electron-free tunnel helpers, so they can be exercised from the e2e test.
-import { spawn, execFileSync, ChildProcess } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { Resolver } from 'dns/promises';
 import * as http from 'http';
 import { AddressInfo } from 'net';
@@ -16,25 +16,7 @@ export interface Tunnel {
 	url: string;
 }
 
-/**
- * Electron apps launched from Finder don't inherit the shell PATH, so check Homebrew paths first.
- */
-export const findCloudflared = (): string | null => {
-	const candidates = ['/opt/homebrew/bin/cloudflared', '/usr/local/bin/cloudflared'];
-
-	for (const candidate of candidates) {
-		if (fs.existsSync(candidate)) {
-			return candidate;
-		}
-	}
-
-	try {
-		const found = execFileSync('/usr/bin/which', ['cloudflared'], { encoding: 'utf8' }).trim();
-		return found || null;
-	} catch {
-		return null;
-	}
-};
+export { findCloudflared } from './cloudflared';
 
 /**
  * Port of the site's web server (nginx or apache), bypassing Local's router.

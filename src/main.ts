@@ -1,8 +1,8 @@
 // https://getflywheel.github.io/local-addon-api/modules/_local_main_.html
 import { getServiceContainer, SiteData } from '@getflywheel/local/main';
 import * as path from 'path';
+import { findCloudflared, installCloudflared, updateCloudflaredIfStale } from './cloudflared';
 import {
-	findCloudflared,
 	findWpCorePaths,
 	getHttpPort,
 	installMuPlugin,
@@ -14,7 +14,7 @@ import {
 
 const ServiceContainer = getServiceContainer();
 
-type Status = 'stopped' | 'starting' | 'running' | 'error';
+type Status = 'stopped' | 'installing' | 'starting' | 'running' | 'error';
 
 interface TunnelState {
 	status: Status;
@@ -33,6 +33,9 @@ export default function (context) {
 		ServiceContainer.cradle as any;
 
 	const log = (message: string) => localLogger?.log('info', `[cloudflare-tunnel] ${message}`);
+
+	// ~/Library/Application Support/Local/cloudflared
+	const managedDir = path.join(electron.app.getPath('userData'), 'cloudflared');
 
 	const setState = (siteId: string, state: TunnelState) => {
 		states.set(siteId, state);
@@ -85,17 +88,27 @@ export default function (context) {
 		}
 
 		const site = SiteData.getSite(siteId);
-		const bin = findCloudflared();
 		const port = getHttpPort(site);
-
-		if (!bin) {
-			setState(siteId, { status: 'error', error: 'cloudflared not found. Run: brew install cloudflared' });
-			return getState(siteId);
-		}
 
 		if (siteProcessManager.getSiteStatus(site) !== 'running' || !port) {
 			setState(siteId, { status: 'error', error: 'Start the site first.' });
 			return getState(siteId);
+		}
+
+		let bin = findCloudflared(managedDir)?.path;
+
+		if (!bin) {
+			setState(siteId, { status: 'installing' });
+
+			try {
+				const installed = await installCloudflared(managedDir);
+				bin = installed.path;
+				log(`Downloaded cloudflared ${installed.version} to ${managedDir}`);
+			} catch (error) {
+				log(`cloudflared download failed: ${error}`);
+				setState(siteId, { status: 'error', error: `Could not download cloudflared: ${error?.message || error}` });
+				return getState(siteId);
+			}
 		}
 
 		setState(siteId, { status: 'starting' });
@@ -138,10 +151,14 @@ export default function (context) {
 
 	addIpcAsyncListener('cf-tunnel:start', start);
 	addIpcAsyncListener('cf-tunnel:stop', stop);
-	addIpcAsyncListener('cf-tunnel:get-status', (siteId: string) => ({
-		...getState(siteId),
-		hasBinary: !!findCloudflared(),
-	}));
+	addIpcAsyncListener('cf-tunnel:get-status', (siteId: string) => getState(siteId));
+
+	// Keep the downloaded copy current; Homebrew installs are left alone.
+	setTimeout(() => {
+		updateCloudflaredIfStale(managedDir)
+			.then(version => version && log(`Updated cloudflared to ${version}`))
+			.catch(error => log(`cloudflared update check failed: ${error}`));
+	}, 30000);
 
 	hooks.addAction('siteStopped', (site: any) => {
 		if (tunnels.has(site.id)) {

@@ -118,7 +118,7 @@ const run = async () => {
 	const site = sites.find((s) => s.name === siteName);
 	assert(site, `Site "${siteName}" not found in Local. Create and start it first.`);
 
-	const bin = findCloudflared();
+	const bin = findCloudflared()?.path;
 	assert(bin, 'cloudflared not found');
 
 	const port = getHttpPort(site);

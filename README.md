@@ -4,15 +4,15 @@ Share a Local site on a public `https://*.trycloudflare.com` URL using a [Cloudf
 
 ## Install
 
-1. `brew install cloudflared`
-2. Download `localwp-cloudflare-tunnel.tgz` from the [latest release](https://github.com/DekodeInteraktiv/localwp-cloudflare-tunnel/releases/latest).
-3. In Local, open **Add-ons → Installed → Install from disk** and pick the `.tgz`.
-4. Enable **Cloudflare Tunnel** and restart Local.
+1. Download `localwp-cloudflare-tunnel.tgz` from the [latest release](https://github.com/DekodeInteraktiv/localwp-cloudflare-tunnel/releases/latest).
+2. In Local, open **Add-ons → Installed → Install from disk** and pick the `.tgz`.
+3. Enable **Cloudflare Tunnel** and restart Local.
+
+You don't need to install `cloudflared` yourself. If it isn't installed, the add-on downloads the official macOS build from [Cloudflare's GitHub releases](https://github.com/cloudflare/cloudflared/releases) the first time you click **Enable**. It checks the SHA-256 checksum that GitHub publishes for the file and stores the binary in `~/Library/Application Support/Local/cloudflared/`. That copy is checked for updates once a week. A `cloudflared` from Homebrew or on your `PATH` is used first if present.
 
 ### From source
 
 ```sh
-brew install cloudflared
 git clone git@github.com:DekodeInteraktiv/localwp-cloudflare-tunnel.git
 cd localwp-cloudflare-tunnel
 npm install && npm run build

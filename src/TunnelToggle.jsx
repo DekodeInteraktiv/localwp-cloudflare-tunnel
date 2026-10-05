@@ -83,17 +83,11 @@ const TunnelToggle = ({ site, siteStatus }) => {
 	};
 
 	const running = state.status === 'running';
-	const busy = state.status === 'starting' || state.status === 'stopping';
+	const busy = ['installing', 'starting', 'stopping'].includes(state.status);
 
 	let content;
 
-	if (state.hasBinary === false) {
-		content = (
-			<span className="cf-tunnel__hint" title="cloudflared is required">
-				brew install cloudflared
-			</span>
-		);
-	} else if (running) {
+	if (running) {
 		content = (
 			<>
 				<button type="button" className="cf-tunnel__link" onClick={() => shell.openExternal(state.url)} title={state.url}>
@@ -108,7 +102,8 @@ const TunnelToggle = ({ site, siteStatus }) => {
 			</>
 		);
 	} else if (busy) {
-		content = <span className="cf-tunnel__hint">{state.status === 'starting' ? 'Creating tunnel…' : 'Closing tunnel…'}</span>;
+		const labels = { installing: 'Downloading cloudflared…', starting: 'Creating tunnel…', stopping: 'Closing tunnel…' };
+		content = <span className="cf-tunnel__hint">{labels[state.status]}</span>;
 	} else {
 		content = (
 			<>
