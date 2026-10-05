@@ -4,6 +4,13 @@ Share a Local site on a public `https://*.trycloudflare.com` URL using a [Cloudf
 
 ## Install
 
+1. `brew install cloudflared`
+2. Download `localwp-cloudflare-tunnel.tgz` from the [latest release](https://github.com/DekodeInteraktiv/localwp-cloudflare-tunnel/releases/latest).
+3. In Local, open **Add-ons → Installed → Install from disk** and pick the `.tgz`.
+4. Enable **Cloudflare Tunnel** and restart Local.
+
+### From source
+
 ```sh
 brew install cloudflared
 git clone git@github.com:DekodeInteraktiv/localwp-cloudflare-tunnel.git
@@ -13,6 +20,10 @@ ln -s "$PWD" ~/Library/Application\ Support/Local/addons/localwp-cloudflare-tunn
 ```
 
 Enable **Cloudflare Tunnel** under Local → Add-ons, then restart Local.
+
+## Releasing
+
+Publish a GitHub release with a tag like `v0.2.0`. The release workflow builds the add-on, sets `package.json` to the tag's version and attaches `localwp-cloudflare-tunnel.tgz` to the release. Run `npm run dist` to build the same file locally.
 
 ## Usage
 

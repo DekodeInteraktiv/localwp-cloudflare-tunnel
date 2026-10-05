@@ -24,7 +24,8 @@
 		"start": "tsc --watch",
 		"build": "tsc && cp src/mu-plugin.php lib/mu-plugin.php",
 		"lint": "tsc --noEmit && php -l src/mu-plugin.php",
-		"test": "npm run build && node test/e2e.js"
+		"test": "npm run build && node test/e2e.js",
+		"dist": "npm run build && npm pack"
 	},
 	"devDependencies": {
 		"@getflywheel/local": "^9",
