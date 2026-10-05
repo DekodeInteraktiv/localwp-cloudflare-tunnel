@@ -1,0 +1,37 @@
+{
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": false,
+		"declaration": false,
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"jsx": "react",
+		"lib": ["es2017", "esnext.asynciterable", "dom"],
+		"module": "commonjs",
+		"noImplicitReturns": true,
+		"noImplicitAny": false,
+		"outDir": "./lib",
+		"resolveJsonModule": true,
+		"rootDir": "./src",
+		"sourceMap": true,
+		"strict": false,
+		"target": "es2015",
+		"typeRoots": [
+			"./node_modules/@types"
+		],
+		"skipLibCheck": true,
+		"moduleResolution": "node",
+		"allowSyntheticDefaultImports": true
+	},
+	"exclude": [
+		"node_modules",
+		"lib",
+		"**/*.test.ts",
+		"**/*.test.tsx",
+		"**/*.spec.ts",
+		"**/*.spec.tsx"
+	],
+	"include": [
+		"src/**/*"
+	]
+}
