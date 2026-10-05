@@ -34,7 +34,7 @@ export default function (context) {
 
 	const log = (message: string) => localLogger?.log('info', `[cloudflare-tunnel] ${message}`);
 
-	// ~/Library/Application Support/Local/cloudflared
+	// Local's data dir: ~/Library/Application Support/Local, %APPDATA%\Local or ~/.config/Local.
 	const managedDir = path.join(electron.app.getPath('userData'), 'cloudflared');
 
 	let quitting = false;

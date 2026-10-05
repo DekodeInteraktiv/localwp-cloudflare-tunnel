@@ -8,7 +8,17 @@ Share a Local site on a public `https://*.trycloudflare.com` URL using a [Cloudf
 2. In Local, open **Add-ons → Installed → Install from disk** and pick the `.tgz`.
 3. Enable **Cloudflare Tunnel** and restart Local.
 
-You don't need to install `cloudflared` yourself. If it isn't installed, the add-on downloads the official macOS build from [Cloudflare's GitHub releases](https://github.com/cloudflare/cloudflared/releases) the first time you click **Enable**. It checks the SHA-256 checksum that GitHub publishes for the file and stores the binary in `~/Library/Application Support/Local/cloudflared/`. That copy is checked for updates once a week. A `cloudflared` from Homebrew or on your `PATH` is used first if present.
+You don't need to install `cloudflared` yourself. If it isn't installed, the add-on downloads the official build for your system from [Cloudflare's GitHub releases](https://github.com/cloudflare/cloudflared/releases) the first time you click **Enable**. It checks the SHA-256 checksum that GitHub publishes for the file and stores the binary in a `cloudflared` folder in Local's data directory. That copy is checked for updates once a week. If you already have `cloudflared` installed, that copy is used first. The add-on looks in Homebrew's folders, the winget and Program Files install locations, `/usr/bin` and `/usr/local/bin`, and your `PATH`.
+
+### Platforms
+
+| OS | cloudflared build | Data directory | Status |
+|---|---|---|---|
+| macOS (Apple Silicon, Intel) | `darwin-arm64` / `darwin-amd64` | `~/Library/Application Support/Local` | Tested in Local |
+| Windows (x64; ARM via emulation) | `windows-amd64.exe` | `%APPDATA%\Local` | Tested in CI, not yet in Local |
+| Linux (x64, arm64) | `linux-amd64` / `linux-arm64` | `~/.config/Local` | Tested in CI, not yet in Local |
+
+On every OS, CI downloads `cloudflared`, runs it and opens a real tunnel. Only macOS has been tested inside Local itself so far. Reports from Windows and Linux users are welcome.
 
 ### From source
 
@@ -44,11 +54,19 @@ cloudflared connects to a small proxy inside the add-on rather than straight to 
 
 ## Test
 
-Create and start a Local site named `cf-tunnel-test`, then:
+```sh
+npm test                           # unit tests
+CF_DOWNLOAD=1 CF_TUNNEL=1 npm test # also download cloudflared and open a real tunnel (what CI runs)
+```
+
+The end-to-end test runs against a real Local site. Create and start a site named `cf-tunnel-test`, then run:
 
 ```sh
-npm test            # or: npm run build && node test/e2e.js <site-name>
+npm run test:e2e                   # or: npm run test:e2e -- <site-name>
+TUNNEL_URL=https://….trycloudflare.com npm run test:e2e  # reuse a tunnel started from Local's UI
 ```
+
+It finds Local's data directory, bundled PHP and `wp-cli.phar` on each OS. Set `LOCAL_DATA` or `LOCAL_WP_CLI` if they're somewhere else.
 
 ## License
 

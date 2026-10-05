@@ -4,7 +4,8 @@
  * Crawls front-end routes (with plain and pretty permalinks), every same-host link and asset
  * they reference, and logged-in wp-admin screens through a real tunnel.
  *
- * Usage: npm run build && node test/e2e.js [site-name]   (default: cf-tunnel-test)
+ * Usage: npm run test:e2e [-- site-name]   (default: cf-tunnel-test)
+ *        LOCAL_DATA / LOCAL_WP_CLI override Local's data dir and bundled wp-cli.phar if they aren't found.
  *        TUNNEL_URL=https://….trycloudflare.com node test/e2e.js   (reuse a tunnel started from Local's UI)
  */
 const assert = require('assert');
@@ -18,8 +19,25 @@ const path = require('path');
 const { findCloudflared, findWpCorePaths, getHttpPort, installMuPlugin, removeMuPlugin, startTunnel, waitForDns, MU_PLUGIN_FILE } = require('../lib/tunnel');
 
 const siteName = process.argv[2] || 'cf-tunnel-test';
-const localData = path.join(os.homedir(), 'Library/Application Support/Local');
-const wpCliPhar = '/Applications/Local.app/Contents/Resources/extraResources/bin/wp-cli/wp-cli.phar';
+const localData =
+	process.env.LOCAL_DATA ||
+	{
+		darwin: path.join(os.homedir(), 'Library', 'Application Support', 'Local'),
+		win32: path.join(process.env.APPDATA || '', 'Local'),
+	}[process.platform] ||
+	path.join(os.homedir(), '.config', 'Local');
+
+const wpCliPhar =
+	process.env.LOCAL_WP_CLI ||
+	[
+		'/Applications/Local.app/Contents/Resources',
+		path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Local', 'resources'),
+		path.join(process.env.ProgramFiles || '', 'Local', 'resources'),
+		path.join(process.env['ProgramFiles(x86)'] || '', 'Local', 'resources'),
+		'/opt/Local/resources',
+	]
+		.map((dir) => path.join(dir, 'extraResources', 'bin', 'wp-cli', 'wp-cli.phar'))
+		.find((file) => fs.existsSync(file));
 const MAX_DISCOVERED = 80;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -30,8 +48,17 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const makeWp = (site, sitePath) => {
 	const phpVersion = site.services.php.version;
 	const phpDir = fs.readdirSync(path.join(localData, 'lightning-services')).find((d) => d.startsWith(`php-${phpVersion}+`));
-	const arch = process.arch === 'arm64' ? 'darwin-arm64' : 'darwin';
-	const php = path.join(localData, 'lightning-services', phpDir, 'bin', arch, 'bin', 'php');
+	const binDir = path.join(localData, 'lightning-services', phpDir, 'bin');
+	// One folder per platform/arch (e.g. darwin-arm64), holding bin/php or php.exe.
+	const isArm = (dir) => dir.endsWith('-arm64');
+	const php = fs
+		.readdirSync(binDir)
+		.sort((a, b) => (isArm(b) === (process.arch === 'arm64')) - (isArm(a) === (process.arch === 'arm64')))
+		.flatMap((platformDir) => ['bin/php', 'php', 'php.exe', 'bin/php.exe'].map((file) => path.join(binDir, platformDir, file)))
+		.find((file) => fs.existsSync(file) && fs.statSync(file).isFile());
+
+	assert(wpCliPhar, "Local's wp-cli.phar not found; set LOCAL_WP_CLI.");
+	assert(php, `PHP ${phpVersion} binary not found under ${binDir}`);
 	const ini = path.join(localData, 'run', site.id, 'conf', 'php', 'php.ini');
 	const corePath = findWpCorePaths(path.join(sitePath, 'app/public'))[0];
 
@@ -118,7 +145,7 @@ const run = async () => {
 	const site = sites.find((s) => s.name === siteName);
 	assert(site, `Site "${siteName}" not found in Local. Create and start it first.`);
 
-	const bin = findCloudflared()?.path;
+	const bin = findCloudflared(path.join(localData, 'cloudflared'))?.path;
 	assert(bin, 'cloudflared not found');
 
 	const port = getHttpPort(site);

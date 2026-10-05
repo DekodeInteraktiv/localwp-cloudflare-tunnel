@@ -22,10 +22,11 @@
 	"license": "MIT",
 	"scripts": {
 		"start": "tsc --watch",
-		"build": "tsc && cp src/mu-plugin.php lib/mu-plugin.php",
+		"build": "tsc && node -e \"require('fs').copyFileSync('src/mu-plugin.php', 'lib/mu-plugin.php')\"",
 		"lint": "tsc --noEmit && php -l src/mu-plugin.php",
-		"test": "npm run build && node test/e2e.js",
-		"dist": "npm run build && npm pack"
+		"test": "npm run build && node --test \"test/unit/*.test.js\"",
+		"dist": "npm run build && npm pack",
+		"test:e2e": "npm run build && node test/e2e.js"
 	},
 	"devDependencies": {
 		"@getflywheel/local": "^9",

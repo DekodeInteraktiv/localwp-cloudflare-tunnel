@@ -15,12 +15,25 @@ export interface Cloudflared {
 	source: 'system' | 'managed';
 }
 
+export interface Platform {
+	platform: NodeJS.Platform;
+	arch: string;
+	env: NodeJS.ProcessEnv;
+}
+
 interface Manifest {
 	version: string;
 	checkedAt: number;
 }
 
-const managedBinary = (dir: string) => path.join(dir, 'cloudflared');
+const current = (): Platform => ({ platform: process.platform, arch: process.arch, env: process.env });
+
+// path.win32 keeps Windows paths correct when tests run on macOS/Linux.
+const pathFor = (platform: NodeJS.Platform) => (platform === 'win32' ? path.win32 : path.posix);
+
+export const binaryName = (platform: NodeJS.Platform) => (platform === 'win32' ? 'cloudflared.exe' : 'cloudflared');
+
+const managedBinary = (dir: string, platform = process.platform) => pathFor(platform).join(dir, binaryName(platform));
 const manifestFile = (dir: string) => path.join(dir, 'manifest.json');
 
 const readManifest = (dir: string): Manifest | null => {
@@ -32,32 +45,89 @@ const readManifest = (dir: string): Manifest | null => {
 };
 
 /**
- * A system install (Homebrew or PATH) wins; otherwise the copy this add-on downloaded.
+ * Where package managers and installers put cloudflared, checked before PATH.
  *
- * Electron apps launched from Finder don't inherit the shell PATH, so check Homebrew paths first.
+ * Electron apps launched from Finder don't inherit the shell PATH, so Homebrew must be listed explicitly.
  */
-export const findCloudflared = (managedDir?: string): Cloudflared | null => {
-	for (const candidate of ['/opt/homebrew/bin/cloudflared', '/usr/local/bin/cloudflared']) {
-		if (fs.existsSync(candidate)) {
+export const systemCandidates = ({ platform, env }: Platform): string[] => {
+	const p = pathFor(platform);
+	const name = binaryName(platform);
+
+	if (platform === 'darwin') {
+		return ['/opt/homebrew/bin', '/usr/local/bin'].map(dir => p.join(dir, name));
+	}
+
+	if (platform === 'win32') {
+		return [
+			env.LOCALAPPDATA && p.join(env.LOCALAPPDATA, 'Microsoft', 'WinGet', 'Links'),
+			env.ProgramFiles && p.join(env.ProgramFiles, 'cloudflared'),
+			env['ProgramFiles(x86)'] && p.join(env['ProgramFiles(x86)'], 'cloudflared'),
+		]
+			.filter(Boolean)
+			.map(dir => p.join(dir as string, name));
+	}
+
+	return ['/usr/local/bin', '/usr/bin', env.HOME && p.join(env.HOME, '.local', 'bin')]
+		.filter(Boolean)
+		.map(dir => p.join(dir as string, name));
+};
+
+const pathCandidates = ({ platform, env }: Platform): string[] => {
+	const p = pathFor(platform);
+	const delimiter = platform === 'win32' ? ';' : ':';
+	const value = env.PATH || env.Path || '';
+
+	return value
+		.split(delimiter)
+		.filter(Boolean)
+		.map(dir => p.join(dir, binaryName(platform)));
+};
+
+/**
+ * A system install (package manager, installer or PATH) wins; otherwise the copy this add-on downloaded.
+ */
+export const findCloudflared = (
+	managedDir?: string,
+	target: Platform = current(),
+	exists: (file: string) => boolean = fs.existsSync
+): Cloudflared | null => {
+	for (const candidate of [...systemCandidates(target), ...pathCandidates(target)]) {
+		if (exists(candidate)) {
 			return { path: candidate, source: 'system' };
 		}
 	}
 
-	try {
-		const found = execFileSync('/usr/bin/which', ['cloudflared'], { encoding: 'utf8' }).trim();
-
-		if (found) {
-			return { path: found, source: 'system' };
-		}
-	} catch {
-		// Not on PATH.
-	}
-
-	if (managedDir && fs.existsSync(managedBinary(managedDir))) {
-		return { path: managedBinary(managedDir), source: 'managed' };
+	if (managedDir && exists(managedBinary(managedDir, target.platform))) {
+		return { path: managedBinary(managedDir, target.platform), source: 'managed' };
 	}
 
 	return null;
+};
+
+/**
+ * The release asset for a platform. Only the macOS builds are archives; the others are plain binaries.
+ */
+export const assetFor = ({ platform, arch }: Pick<Platform, 'platform' | 'arch'>): { name: string; archive: boolean } => {
+	if (platform === 'darwin') {
+		return { name: `cloudflared-darwin-${arch === 'arm64' ? 'arm64' : 'amd64'}.tgz`, archive: true };
+	}
+
+	if (platform === 'win32') {
+		// Windows on ARM runs the amd64 build under emulation; there is no native arm64 build.
+		return { name: `cloudflared-windows-${arch === 'ia32' ? '386' : 'amd64'}.exe`, archive: false };
+	}
+
+	if (platform === 'linux') {
+		const linuxArch = { x64: 'amd64', arm64: 'arm64', arm: 'arm', ia32: '386' }[arch];
+
+		if (!linuxArch) {
+			throw new Error(`No cloudflared build for linux/${arch}. Install cloudflared manually.`);
+		}
+
+		return { name: `cloudflared-linux-${linuxArch}`, archive: false };
+	}
+
+	throw new Error(`No cloudflared build for ${platform}. Install cloudflared manually.`);
 };
 
 const get = (url: string, redirects = 0): Promise<Buffer> =>
@@ -92,69 +162,77 @@ const get = (url: string, redirects = 0): Promise<Buffer> =>
 			.on('error', reject);
 	});
 
-const assetName = () => {
-	if (process.platform !== 'darwin') {
-		throw new Error(`Automatic cloudflared download only supports macOS. Install cloudflared manually.`);
-	}
-
-	return `cloudflared-darwin-${process.arch === 'arm64' ? 'arm64' : 'amd64'}.tgz`;
-};
-
-const latestRelease = async () => {
+const latestRelease = async (target: Pick<Platform, 'platform' | 'arch'>) => {
+	const { name, archive } = assetFor(target);
 	const release = JSON.parse((await get(RELEASES_API)).toString('utf8'));
-	const asset = release.assets?.find((a: any) => a.name === assetName());
+	const asset = release.assets?.find((a: any) => a.name === name);
 
 	if (!asset) {
-		throw new Error(`No ${assetName()} in cloudflared ${release.tag_name}`);
+		throw new Error(`No ${name} in cloudflared ${release.tag_name}`);
 	}
 
-	return { version: release.tag_name as string, url: asset.browser_download_url as string, digest: asset.digest as string | undefined };
+	return {
+		version: release.tag_name as string,
+		url: asset.browser_download_url as string,
+		digest: asset.digest as string | undefined,
+		archive,
+	};
 };
 
 /**
  * Downloads the latest cloudflared, verifies its SHA-256 and swaps it in atomically.
+ *
+ * `target` is only overridden by tests, to fetch other platforms' builds.
  */
-export const installCloudflared = async (managedDir: string): Promise<Cloudflared & { version: string }> => {
-	const { version, url, digest } = await latestRelease();
-	const archive = await get(url);
+export const installCloudflared = async (
+	managedDir: string,
+	target: Pick<Platform, 'platform' | 'arch'> = current()
+): Promise<Cloudflared & { version: string }> => {
+	const { version, url, digest, archive } = await latestRelease(target);
+	const download = await get(url);
 
 	if (!digest?.startsWith('sha256:')) {
 		throw new Error('GitHub did not provide a checksum for cloudflared; refusing to install it.');
 	}
 
-	const actual = createHash('sha256').update(archive).digest('hex');
-
-	if (`sha256:${actual}` !== digest) {
+	if (`sha256:${createHash('sha256').update(download).digest('hex')}` !== digest) {
 		throw new Error('cloudflared download failed checksum verification.');
 	}
 
+	const name = binaryName(target.platform);
+	const finalPath = path.join(managedDir, name);
+	// Same directory as the target, so the final rename is atomic.
+	const staged = `${finalPath}.new`;
+
 	fs.mkdirSync(managedDir, { recursive: true });
-	const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'cloudflared-'));
 
-	try {
-		const archivePath = path.join(temp, 'cloudflared.tgz');
-		fs.writeFileSync(archivePath, archive);
-		execFileSync('/usr/bin/tar', ['-xzf', archivePath, '-C', temp]);
+	if (archive) {
+		const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'cloudflared-'));
 
-		const extracted = path.join(temp, 'cloudflared');
-		fs.chmodSync(extracted, 0o755);
-
-		// Same volume as the target, so the final rename is atomic.
-		const staged = `${managedBinary(managedDir)}.new`;
-		fs.copyFileSync(extracted, staged);
-		fs.chmodSync(staged, 0o755);
-		fs.renameSync(staged, managedBinary(managedDir));
-	} finally {
-		fs.rmSync(temp, { recursive: true, force: true });
+		try {
+			const archivePath = path.join(temp, 'cloudflared.tgz');
+			fs.writeFileSync(archivePath, download);
+			execFileSync('tar', ['-xzf', archivePath, '-C', temp]);
+			fs.copyFileSync(path.join(temp, 'cloudflared'), staged);
+		} finally {
+			fs.rmSync(temp, { recursive: true, force: true });
+		}
+	} else {
+		fs.writeFileSync(staged, download);
 	}
+
+	fs.chmodSync(staged, 0o755);
+
+	// On Windows this fails while the old cloudflared.exe is running; the next update check retries.
+	fs.renameSync(staged, finalPath);
 
 	fs.writeFileSync(manifestFile(managedDir), JSON.stringify({ version, checkedAt: Date.now() } as Manifest));
 
-	return { path: managedBinary(managedDir), source: 'managed', version };
+	return { path: finalPath, source: 'managed', version };
 };
 
 /**
- * Refreshes the managed copy at most once a week. System installs are left to Homebrew.
+ * Refreshes the managed copy at most once a week. System installs are left to their package manager.
  *
  * Returns the new version when it updated.
  */
@@ -165,7 +243,7 @@ export const updateCloudflaredIfStale = async (managedDir: string): Promise<stri
 		return null;
 	}
 
-	const { version } = await latestRelease();
+	const { version } = await latestRelease(current());
 
 	if (manifest?.version === version) {
 		fs.writeFileSync(manifestFile(managedDir), JSON.stringify({ ...manifest, checkedAt: Date.now() }));
